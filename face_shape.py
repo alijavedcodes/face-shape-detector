@@ -19,7 +19,6 @@ Improvements over the original StyleZone script:
 """
 from __future__ import annotations
 
-import bz2
 import math
 import os
 import urllib.request
@@ -33,10 +32,11 @@ import numpy as np
 # --------------------------------------------------------------------------- #
 _HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(_HERE, "models")
-MODEL_PATH = os.path.join(MODEL_DIR, "shape_predictor_68_face_landmarks.dat")
+MODEL_PATH = os.path.join(MODEL_DIR, "shape_predictor_81_face_landmarks.dat")
+# 81-point model = the standard 68 landmarks PLUS 13 forehead/hairline points (68-80).
 MODEL_URL = (
-    "https://github.com/davisking/dlib-models/raw/master/"
-    "shape_predictor_68_face_landmarks.dat.bz2"
+    "https://github.com/codeniko/shape_predictor_81_face_landmarks/raw/master/"
+    "shape_predictor_81_face_landmarks.dat"
 )
 
 _detector = None
@@ -47,12 +47,8 @@ def _ensure_model() -> None:
     if os.path.exists(MODEL_PATH):
         return
     os.makedirs(MODEL_DIR, exist_ok=True)
-    bz2_path = MODEL_PATH + ".bz2"
-    print("Downloading dlib landmark model (~64 MB, one time)...")
-    urllib.request.urlretrieve(MODEL_URL, bz2_path)
-    with bz2.open(bz2_path, "rb") as src, open(MODEL_PATH, "wb") as dst:
-        dst.write(src.read())
-    os.remove(bz2_path)
+    print("Downloading dlib 81-point landmark model (~18 MB, one time)...")
+    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
 
 
 def _load():
@@ -106,24 +102,23 @@ def _angle(a, b, c) -> float:
 
 
 def _measure(pts, rect):
-    """Compute normalised facial measurements from the 68 landmarks."""
+    """Compute normalised facial measurements from the 81 landmarks."""
     chin = pts[8]
-    brow_top_y = min(pts[i][1] for i in range(17, 27))
 
-    # Forehead width: dlib has NO forehead/hairline landmarks, so estimate the
-    # temple-to-temple width (outline points 0 & 16) and raise the line up onto the
-    # forehead — instead of sitting it on the eyebrows, which read too low and narrow.
-    forehead_y = int(max(brow_top_y - 0.30 * (chin[1] - brow_top_y), 0))
-    fx_left, fx_right = pts[0][0], pts[16][0]
-    forehead_w = abs(fx_right - fx_left)
+    # Forehead: the 81-point model adds real hairline landmarks (indices 68-80).
+    # Use the actual leftmost/rightmost/topmost forehead points (robust to their
+    # internal ordering) instead of an eyebrow or temple-silhouette proxy.
+    forehead_pts = pts[68:81]
+    f_left = min(forehead_pts, key=lambda p: p[0])    # leftmost hairline point
+    f_right = max(forehead_pts, key=lambda p: p[0])   # rightmost hairline point
+    f_top = min(forehead_pts, key=lambda p: p[1])     # highest hairline point
+    forehead_w = _dist(f_left, f_right)
 
     cheek_w = _dist(pts[1], pts[15])      # cheekbone width (widest face outline)
     jaw_w = _dist(pts[4], pts[12])        # jaw / gonial width
 
-    # Face length: chin -> estimated hairline (forehead ~ half the brow->chin span),
-    # since the landmarks stop at the eyebrows.
-    top_y = int(max(brow_top_y - 0.5 * (chin[1] - brow_top_y), 0))
-    length = _dist(chin, (chin[0], top_y))
+    # Face length: chin -> actual hairline (a real landmark now, not an estimate)
+    length = _dist(chin, (chin[0], f_top[1]))
 
     # Jaw angularity: average gonial angle on both sides (smaller = more angular)
     jaw_angle = (_angle(pts[2], pts[4], pts[6]) + _angle(pts[14], pts[12], pts[10])) / 2.0
@@ -133,8 +128,8 @@ def _measure(pts, rect):
         "cheek_w": cheek_w,
         "jaw_w": jaw_w,
         "length": length,
-        "top_y": top_y,
-        "forehead_line": ((fx_left, forehead_y), (fx_right, forehead_y)),
+        "top_y": f_top[1],
+        "forehead_line": (f_left, f_right),
         "jaw_angle": jaw_angle,
         "len_to_width": length / max(cheek_w, 1e-6),
         "forehead_to_cheek": forehead_w / max(cheek_w, 1e-6),
