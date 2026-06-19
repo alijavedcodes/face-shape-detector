@@ -137,38 +137,51 @@ def _measure(pts, rect):
     }
 
 
+def _membership(m):
+    """
+    Soft per-shape scoring -> normalised confidences (dict, highest first).
+
+    Face shape is a subjective label (humans disagree ~25-30%), so instead of a hard
+    single class we score how well the measurements fit each shape and return a
+    confidence blend. Built from smooth membership functions over the same calibrated
+    features: length/width (L), jaw/cheek taper (J, measured low at 5<->11 so the normal
+    band is ~0.61-0.70), forehead/cheek (F), and jaw angle (A).
+    """
+    L, J, F, A = m["len_to_width"], m["jaw_to_cheek"], m["forehead_to_cheek"], m["jaw_angle"]
+
+    def bump(x, c, w):
+        return math.exp(-((x - c) / w) ** 2)
+
+    def hi(x, t, s):
+        return 1.0 / (1.0 + math.exp(-(x - t) / s))
+
+    def lo(x, t, s):
+        return 1.0 / (1.0 + math.exp((x - t) / s))
+
+    short, mid, long_ = lo(L, 1.30, 0.06), bump(L, 1.42, 0.14), hi(L, 1.55, 0.06)
+    soft, angular = hi(A, 150, 5), lo(A, 150, 5)
+    normaljaw = bump(J, 0.67, 0.08)
+    narrowjaw, widejaw = lo(J, 0.57, 0.04), hi(J, 0.83, 0.04)
+    wide_fore, narrow_fore = hi(F, 0.96, 0.04), lo(F, 0.92, 0.04)
+
+    raw = {
+        "Round": short * soft * normaljaw,
+        "Square": short * angular * normaljaw,
+        "Oval": mid * soft * normaljaw,
+        "Oblong": long_ * soft * normaljaw,
+        "Rectangle": long_ * angular * normaljaw,
+        "Heart": narrowjaw * wide_fore,
+        "Diamond": narrowjaw * narrow_fore,
+        "Triangle (Pear)": widejaw,
+    }
+    total = sum(raw.values()) or 1.0
+    conf = {k: v / total for k, v in raw.items()}
+    return dict(sorted(conf.items(), key=lambda kv: kv[1], reverse=True))
+
+
 def classify(m) -> str:
-    """
-    Rule-based classifier using normalised ratios, calibrated against real-landmark
-    baselines (an average face has jaw/cheek ~0.82 and forehead/cheek ~0.85, using
-    the eyebrow span as the forehead proxy). Primary axes are the length/width ratio
-    and jaw angularity (both reliable from dlib's 68 points); Heart/Diamond/Triangle
-    are treated as special cases that need a clearly tapered or inverted jaw.
-    """
-    fore_ratio = m["forehead_to_cheek"]   # ~0.85 baseline for an average face
-    jaw_ratio = m["jaw_to_cheek"]         # ~0.82 baseline for an average face
-    ratio = m["len_to_width"]             # face length / cheekbone width
-    angular = m["jaw_angle"] < 150.0      # smaller gonial angle => more angular jaw
-
-    # Jaw width is measured low on the jawline (5<->11), so the normal jaw/cheek band is
-    # ~0.61-0.70. Triangle/Heart/Diamond fire only well outside that band.
-    # Triangle / Pear: jaw unusually wide for that level (inverse taper).
-    if jaw_ratio > 0.83:
-        return "Triangle (Pear)"
-
-    # Strong jaw taper (clearly narrow jaw / pointed lower face) -> Heart vs Diamond.
-    # forehead is hairline-width (~1.0x cheek baseline): wide top => Heart, else Diamond.
-    if jaw_ratio < 0.57:
-        return "Heart" if fore_ratio >= 0.92 else "Diamond"
-
-    # Normal taper -> decide by face length (chin-to-hairline / cheekbone width) and
-    # jaw angularity. Thresholds calibrated for the hairline-inclusive length:
-    #   short (<1.30): Round / Square   mid (1.30-1.60): Oval / Rectangle   long: Oblong / Rectangle
-    if ratio < 1.30:
-        return "Square" if angular else "Round"
-    if ratio < 1.60:
-        return "Rectangle" if angular else "Oval"
-    return "Rectangle" if angular else "Oblong"
+    """Top face-shape label (see _membership for the full confidence blend)."""
+    return next(iter(_membership(m)))
 
 
 # --------------------------------------------------------------------------- #
@@ -219,12 +232,14 @@ def analyze(image_bgr):
     pts = [(p.x, p.y) for p in shape68.parts()]
 
     m = _measure(pts, rect)
-    shape = classify(m)
+    scores = _membership(m)
+    shape = next(iter(scores))
     annotated = _annotate(image_bgr, pts, m, rect, shape)
 
     return {
         "ok": True,
         "shape": shape,
+        "scores": scores,
         "tip": SHAPE_TIPS.get(shape, SHAPE_TIPS["Unknown"]),
         "measurements": m,
         "annotated": annotated,

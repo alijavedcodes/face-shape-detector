@@ -25,16 +25,20 @@ def run(image_rgb):
 
     annotated_rgb = cv2.cvtColor(res["annotated"], cv2.COLOR_BGR2RGB)
     m = res["measurements"]
+    scores = res["scores"]
+    blend = ", ".join(f"{k} {v * 100:.0f}%" for k, v in list(scores.items())[:2])
     details = (
-        f"### {res['shape']}\n"
+        f"### {res['shape']} · {scores[res['shape']] * 100:.0f}%\n"
         f"{res['tip']}\n\n"
+        f"**Closest shapes:** {blend}  \n"
+        f"*Face shape is subjective (people disagree ~25–30%), so this shows a blend, not a verdict.*\n\n"
         f"**Measurements (normalised ratios)**\n"
         f"- Length / cheekbone width: `{m['len_to_width']:.2f}`\n"
         f"- Forehead / cheekbone: `{m['forehead_to_cheek']:.2f}`\n"
         f"- Jaw / cheekbone: `{m['jaw_to_cheek']:.2f}`\n"
         f"- Jaw angle: `{m['jaw_angle']:.0f}°`\n"
     )
-    return annotated_rgb, {res["shape"]: 1.0}, details
+    return annotated_rgb, scores, details
 
 
 DESCRIPTION = """
@@ -57,7 +61,7 @@ with gr.Blocks(title="Face-Shape Detector") as demo:
             btn = gr.Button("Analyze", variant="primary")
         with gr.Column():
             out_img = gr.Image(label="Detected landmarks & measurements")
-            out_shape = gr.Label(label="Face shape", num_top_classes=1)
+            out_shape = gr.Label(label="Face shape (confidence blend)", num_top_classes=3)
             out_text = gr.Markdown()
     gr.Examples(
         examples=[

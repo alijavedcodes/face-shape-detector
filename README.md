@@ -26,7 +26,7 @@ Upload a front-facing photo and the app:
 
 1. Detects the face (dlib HOG detector) and maps **81 facial landmarks** (including the forehead/hairline).
 2. Measures forehead, cheekbone, and jaw widths, face length, and jaw angle.
-3. Converts those to **normalised ratios** and classifies into one of **8 shapes**.
+3. Converts those to **normalised ratios** and scores all **8 shapes**, returning a confidence blend.
 4. Draws the landmarks + measurement lines and returns a **hairstyle recommendation**.
 
 ## How it works
@@ -70,6 +70,9 @@ classification:
 - **Calibrated the thresholds against real landmark geometry** so a typical face lands on a
   common shape (Oval/Round) instead of collapsing to one class — and **added the missing
   Oval and Heart shapes**.
+- **Outputs a confidence blend, not a hard verdict** — face shape is subjective (people
+  disagree ~25–30%), so it scores all 8 shapes with smooth membership functions and shows
+  the top few with confidences (e.g. *"Oval 60%, Round 25%"*) instead of pretending certainty.
 
 > Note: face-shape classification from 2D landmarks is a **heuristic**, not exact science.
 > The goal here is a transparent, well-calibrated demo — not clinical accuracy.
