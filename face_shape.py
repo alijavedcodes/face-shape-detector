@@ -105,20 +105,21 @@ def _measure(pts, rect):
     """Compute normalised facial measurements from the 81 landmarks."""
     chin = pts[8]
 
-    # Forehead: the 81-point model adds hairline landmarks (68-80), but the OUTERMOST
-    # ones sit low near the temples — connecting the extreme points dropped the line down
-    # to eyebrow level. So take the full temple-to-temple WIDTH, but draw the line up at
-    # the hairline level (average of the highest few points).
+    # Forehead (81-point hairline landmarks 68-80): the outer points sit low at the
+    # temples, so (a) trim the 3 outermost points each side for the WIDTH so it stays
+    # within the forehead skin (not into the hair), and (b) draw the line at the vertical
+    # CENTRE of the forehead (midway between the brow line and the hairline).
     forehead_pts = pts[68:81]
-    xs = [p[0] for p in forehead_pts]
+    xs = sorted(p[0] for p in forehead_pts)
     ys = sorted(p[1] for p in forehead_pts)
-    fx_left, fx_right = min(xs), max(xs)
+    fx_left, fx_right = xs[3], xs[-4]
     forehead_w = fx_right - fx_left
-    top_y = ys[0]                           # highest hairline point (for face length)
-    fore_line_y = int(sum(ys[:4]) / 4.0)    # hairline level for the drawn forehead line
+    top_y = ys[0]                                   # highest hairline point (face length)
+    brow_top_y = min(pts[i][1] for i in range(17, 27))
+    fore_line_y = int((brow_top_y + top_y) / 2)     # vertical centre of the forehead
 
     cheek_w = _dist(pts[1], pts[15])      # cheekbone width (widest face outline)
-    jaw_w = _dist(pts[5], pts[11])        # jaw width (on the jawline, below the mouth)
+    jaw_w = _dist(pts[3], pts[13])        # jaw width = bigonial width at the jaw corner (gonial angle)
 
     # Face length: chin -> actual hairline (highest forehead landmark)
     length = _dist(chin, (chin[0], top_y))
@@ -147,8 +148,8 @@ def _membership(m):
     Face shape is a subjective label (humans disagree ~25-30%), so instead of a hard
     single class we score how well the measurements fit each shape and return a
     confidence blend. Built from smooth membership functions over the same calibrated
-    features: length/width (L), jaw/cheek taper (J, measured low at 5<->11 so the normal
-    band is ~0.61-0.70), forehead/cheek (F), and jaw angle (A).
+    features: length/width (L), jaw/cheek taper (J, the bigonial width at the jaw corner
+    3<->13 so the normal band is ~0.87-0.95), forehead/cheek (F), and jaw angle (A).
     """
     L, J, F, A = m["len_to_width"], m["jaw_to_cheek"], m["forehead_to_cheek"], m["jaw_angle"]
 
@@ -163,8 +164,8 @@ def _membership(m):
 
     short, mid, long_ = lo(L, 1.30, 0.06), bump(L, 1.42, 0.14), hi(L, 1.55, 0.06)
     soft, angular = hi(A, 150, 5), lo(A, 150, 5)
-    normaljaw = bump(J, 0.67, 0.08)
-    narrowjaw, widejaw = lo(J, 0.57, 0.04), hi(J, 0.83, 0.04)
+    normaljaw = bump(J, 0.92, 0.06)
+    narrowjaw, widejaw = lo(J, 0.86, 0.03), hi(J, 0.98, 0.03)
     wide_fore, narrow_fore = hi(F, 0.96, 0.04), lo(F, 0.92, 0.04)
 
     raw = {
@@ -200,7 +201,7 @@ def _annotate(image, pts, m, rect, shape):
     green = (0, 220, 0)
     cv2.line(out, m["forehead_line"][0], m["forehead_line"][1], green, 2)  # forehead (temple width, raised onto forehead)
     cv2.line(out, tuple(pts[1]), tuple(pts[15]), green, 2)       # cheekbone
-    cv2.line(out, tuple(pts[5]), tuple(pts[11]), green, 2)       # jaw
+    cv2.line(out, tuple(pts[3]), tuple(pts[13]), green, 2)       # jaw (bigonial width at the jaw corner)
     cv2.line(out, (chin[0], m["top_y"]), tuple(chin), green, 2)  # length (to estimated hairline)
     # label
     cv2.putText(out, shape, (rect.left(), max(rect.top() - 12, 20)),

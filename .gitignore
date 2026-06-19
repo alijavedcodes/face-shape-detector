@@ -7,3 +7,6 @@ annotated_output.jpg
 
 # annotated outputs
 sample_images/annotated_*.jpg
+
+# local result previews
+results/

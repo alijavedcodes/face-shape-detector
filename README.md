@@ -45,7 +45,7 @@ photo ──▶ dlib face detector ──▶ 81 landmarks ──▶ geometric me
 |--------|----------------|
 | Forehead width | hairline landmarks (68–80) |
 | Cheekbone width | 1 ↔ 15 |
-| Jaw width | 5 ↔ 11 |
+| Jaw width | 3 ↔ 13 (bigonial width at the jaw corner) |
 | Face length | chin (8) → hairline (highest forehead landmark) |
 | Jaw angle | gonial angle at 2-4-6 / 10-12-14 |
 
