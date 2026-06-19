@@ -111,8 +111,13 @@ def _measure(pts, rect):
     forehead_w = _dist(pts[17], pts[26])          # outer brow to outer brow
     cheek_w = _dist(pts[1], pts[15])              # cheekbone width
     jaw_w = _dist(pts[4], pts[12])               # jaw (gonial) width
-    # face length: chin up to the top of the detected face box (forehead estimate)
-    length = _dist(chin, (chin[0], rect.top()))
+    # Estimate the hairline (forehead top) from the landmarks via the rule of thirds:
+    # the forehead (hairline->brow) is ~half the brow->chin distance. dlib's HOG box
+    # stops around the eyebrows, so we extrapolate above the highest brow point rather
+    # than using the box top (which made the length line fall short of the forehead).
+    brow_top_y = min(pts[i][1] for i in range(17, 27))
+    top_y = int(max(brow_top_y - 0.5 * (chin[1] - brow_top_y), 0))
+    length = _dist(chin, (chin[0], top_y))
 
     # jaw angularity: average gonial angle on both sides (smaller = more angular)
     jaw_angle = (_angle(pts[2], pts[4], pts[6]) + _angle(pts[14], pts[12], pts[10])) / 2.0
@@ -122,6 +127,7 @@ def _measure(pts, rect):
         "cheek_w": cheek_w,
         "jaw_w": jaw_w,
         "length": length,
+        "top_y": top_y,
         "jaw_angle": jaw_angle,
         "len_to_width": length / max(cheek_w, 1e-6),
         "forehead_to_cheek": forehead_w / max(cheek_w, 1e-6),
@@ -150,11 +156,13 @@ def classify(m) -> str:
     if jaw_ratio < 0.75:
         return "Heart" if fore_ratio > 0.82 else "Diamond"
 
-    # Normal taper -> decide by face length and jaw angularity
-    if ratio < 1.15:
+    # Normal taper -> decide by face length (chin-to-hairline / cheekbone width) and
+    # jaw angularity. Thresholds calibrated for the hairline-inclusive length:
+    #   short (<1.30): Round / Square   mid (1.30-1.60): Oval / Rectangle   long: Oblong / Rectangle
+    if ratio < 1.30:
         return "Square" if angular else "Round"
-    if ratio < 1.45:
-        return "Oval"
+    if ratio < 1.60:
+        return "Rectangle" if angular else "Oval"
     return "Rectangle" if angular else "Oblong"
 
 
@@ -172,7 +180,7 @@ def _annotate(image, pts, m, rect, shape):
     cv2.line(out, tuple(pts[17]), tuple(pts[26]), green, 2)      # forehead
     cv2.line(out, tuple(pts[1]), tuple(pts[15]), green, 2)       # cheekbone
     cv2.line(out, tuple(pts[4]), tuple(pts[12]), green, 2)       # jaw
-    cv2.line(out, (chin[0], rect.top()), tuple(chin), green, 2)  # length
+    cv2.line(out, (chin[0], m["top_y"]), tuple(chin), green, 2)  # length (to estimated hairline)
     # label
     cv2.putText(out, shape, (rect.left(), max(rect.top() - 12, 20)),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2, cv2.LINE_AA)
