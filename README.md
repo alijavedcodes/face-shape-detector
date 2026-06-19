@@ -14,7 +14,7 @@ license: mit
 Detect a person's **face shape** from a single photo using classic computer vision —
 **OpenCV** + **dlib** 81-point facial landmarks (with forehead/hairline points) — then recommend flattering hairstyles.
 
-**▶️ Live demo:** _<add your Hugging Face Space URL here>_
+**▶️ Live demo:** https://huggingface.co/spaces/alijavedcodes/face-shape-detector
 
 ![demo](assets/demo.jpg)
 
