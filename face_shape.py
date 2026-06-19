@@ -115,7 +115,7 @@ def _measure(pts, rect):
     forehead_w = _dist(f_left, f_right)
 
     cheek_w = _dist(pts[1], pts[15])      # cheekbone width (widest face outline)
-    jaw_w = _dist(pts[4], pts[12])        # jaw / gonial width
+    jaw_w = _dist(pts[5], pts[11])        # jaw width (on the jawline, below the mouth)
 
     # Face length: chin -> actual hairline (a real landmark now, not an estimate)
     length = _dist(chin, (chin[0], f_top[1]))
@@ -150,13 +150,15 @@ def classify(m) -> str:
     ratio = m["len_to_width"]             # face length / cheekbone width
     angular = m["jaw_angle"] < 150.0      # smaller gonial angle => more angular jaw
 
-    # Triangle / Pear: jaw is wider than the cheekbones (inverse taper)
-    if jaw_ratio > 1.0:
+    # Jaw width is measured low on the jawline (5<->11), so the normal jaw/cheek band is
+    # ~0.61-0.70. Triangle/Heart/Diamond fire only well outside that band.
+    # Triangle / Pear: jaw unusually wide for that level (inverse taper).
+    if jaw_ratio > 0.83:
         return "Triangle (Pear)"
 
     # Strong jaw taper (clearly narrow jaw / pointed lower face) -> Heart vs Diamond.
-    # forehead is now temple-width (~1.0x cheek baseline): wide top => Heart, else Diamond.
-    if jaw_ratio < 0.75:
+    # forehead is hairline-width (~1.0x cheek baseline): wide top => Heart, else Diamond.
+    if jaw_ratio < 0.57:
         return "Heart" if fore_ratio >= 0.92 else "Diamond"
 
     # Normal taper -> decide by face length (chin-to-hairline / cheekbone width) and
@@ -182,7 +184,7 @@ def _annotate(image, pts, m, rect, shape):
     green = (0, 220, 0)
     cv2.line(out, m["forehead_line"][0], m["forehead_line"][1], green, 2)  # forehead (temple width, raised onto forehead)
     cv2.line(out, tuple(pts[1]), tuple(pts[15]), green, 2)       # cheekbone
-    cv2.line(out, tuple(pts[4]), tuple(pts[12]), green, 2)       # jaw
+    cv2.line(out, tuple(pts[5]), tuple(pts[11]), green, 2)       # jaw
     cv2.line(out, (chin[0], m["top_y"]), tuple(chin), green, 2)  # length (to estimated hairline)
     # label
     cv2.putText(out, shape, (rect.left(), max(rect.top() - 12, 20)),
