@@ -65,9 +65,11 @@ with gr.Blocks(title="Face-Shape Detector") as demo:
             out_text = gr.Markdown()
     gr.Examples(
         examples=[
-            ["sample_images/face1.jpg"],
-            ["sample_images/face2.jpg"],
-            ["sample_images/face3.jpg"],
+            ["sample_images/sample1.jpg"],
+            ["sample_images/sample2.jpg"],
+            ["sample_images/sample3.jpg"],
+            ["sample_images/sample4.jpg"],
+            ["sample_images/sample5.jpg"],
         ],
         inputs=inp,
         outputs=[out_img, out_shape, out_text],
