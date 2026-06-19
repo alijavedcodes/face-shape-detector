@@ -1,0 +1,5 @@
+dlib-bin
+opencv-python-headless
+numpy
+gradio
+pillow

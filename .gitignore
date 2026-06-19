@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+models/
+annotated_output.jpg
+.venv/
+.DS_Store
+
+# annotated outputs
+sample_images/annotated_*.jpg
