@@ -101,6 +101,50 @@ def _angle(a, b, c) -> float:
     return math.degrees(math.acos(max(-1.0, min(1.0, cos))))
 
 
+# Pose thresholds (calibrated on the sample set): beyond these the 2D width/length
+# ratios are a distorted projection of a 3D face, so we warn instead of pretending.
+ROLL_LIMIT = 12.0     # head tilt (eye-line angle, degrees)
+YAW_LIMIT = 0.18      # head turn (left/right nose-symmetry asymmetry, 0 = straight)
+
+
+def _pose(pts):
+    """
+    Cheap, robust head-pose check from the 2D landmarks.
+
+    We deliberately DON'T use solvePnP here — on real photos its Euler decomposition
+    is unreliable (it reports ~0deg yaw on clearly-turned faces). Instead:
+      * tilt (roll)  = angle of the line between the two eye centres (exact).
+      * turn (yaw)   = nose-to-cheek symmetry: |nose->left edge| vs |nose->right edge|.
+                       0 = centred/straight; grows as the face turns and one side
+                       foreshortens. Pitch (up/down nod) isn't reliably recoverable
+                       from 2D landmarks, so we don't claim it.
+    """
+    le = (sum(pts[i][0] for i in range(36, 42)) / 6.0, sum(pts[i][1] for i in range(36, 42)) / 6.0)
+    re = (sum(pts[i][0] for i in range(42, 48)) / 6.0, sum(pts[i][1] for i in range(42, 48)) / 6.0)
+    roll = math.degrees(math.atan2(re[1] - le[1], re[0] - le[0]))
+
+    nose_x = pts[30][0]
+    d_left = abs(nose_x - pts[0][0])
+    d_right = abs(pts[16][0] - nose_x)
+    yaw_asym = (d_right - d_left) / max(d_right + d_left, 1e-6)
+
+    tilted = abs(roll) > ROLL_LIMIT
+    turned = abs(yaw_asym) > YAW_LIMIT
+
+    warning = None
+    if tilted and turned:
+        warning = ("Face looks turned and tilted — for an accurate reading, face the "
+                   "camera straight-on and keep your head level.")
+    elif turned:
+        warning = ("Face looks turned to one side — for an accurate reading, face the "
+                   "camera straight-on.")
+    elif tilted:
+        warning = (f"Head looks tilted (~{abs(roll):.0f}°) — for an accurate reading, "
+                   "keep your head level.")
+
+    return {"roll": roll, "yaw_asym": yaw_asym, "tilted": tilted, "turned": turned, "warning": warning}
+
+
 def _measure(pts, rect):
     """Compute normalised facial measurements from the 81 landmarks."""
     chin = pts[8]
@@ -236,6 +280,7 @@ def analyze(image_bgr):
     pts = [(p.x, p.y) for p in shape68.parts()]
 
     m = _measure(pts, rect)
+    pose = _pose(pts)
     scores = _membership(m)
     shape = next(iter(scores))
     annotated = _annotate(image_bgr, pts, m, rect, shape)
@@ -246,6 +291,8 @@ def analyze(image_bgr):
         "scores": scores,
         "tip": SHAPE_TIPS.get(shape, SHAPE_TIPS["Unknown"]),
         "measurements": m,
+        "pose": pose,
+        "warning": pose["warning"],
         "annotated": annotated,
     }
 

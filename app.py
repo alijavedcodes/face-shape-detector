@@ -27,7 +27,10 @@ def run(image_rgb):
     m = res["measurements"]
     scores = res["scores"]
     blend = ", ".join(f"{k} {v * 100:.0f}%" for k, v in list(scores.items())[:2])
+    warn = (f"> ⚠️ **{res['warning']}** Treat the result below as a rough estimate.\n\n"
+            if res.get("warning") else "")
     details = (
+        f"{warn}"
         f"### {res['shape']} · {scores[res['shape']] * 100:.0f}%\n"
         f"{res['tip']}\n\n"
         f"**Closest shapes:** {blend}  \n"

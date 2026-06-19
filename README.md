@@ -73,6 +73,12 @@ classification:
 - **Outputs a confidence blend, not a hard verdict** — face shape is subjective (people
   disagree ~25–30%), so it scores all 8 shapes with smooth membership functions and shows
   the top few with confidences (e.g. *"Oval 60%, Round 25%"*) instead of pretending certainty.
+- **Pose / quality gate** — width and length ratios only hold for a straight, front-facing
+  photo (a turned face is a distorted 2D projection of a 3D head). The app checks head
+  **tilt** (eye-line angle) and **turn** (nose-to-cheek symmetry) and, if either is too far
+  off, shows a *"face the camera straight-on"* warning and marks the result as a rough
+  estimate. (`solvePnP` was tried first but reported ~0° yaw on clearly-turned faces, so a
+  simpler, more reliable 2D check is used instead.)
 
 > Note: face-shape classification from 2D landmarks is a **heuristic**, not exact science.
 > The goal here is a transparent, well-calibrated demo — not clinical accuracy.
