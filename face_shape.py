@@ -108,18 +108,24 @@ def _angle(a, b, c) -> float:
 def _measure(pts, rect):
     """Compute normalised facial measurements from the 68 landmarks."""
     chin = pts[8]
-    forehead_w = _dist(pts[17], pts[26])          # outer brow to outer brow
-    cheek_w = _dist(pts[1], pts[15])              # cheekbone width
-    jaw_w = _dist(pts[4], pts[12])               # jaw (gonial) width
-    # Estimate the hairline (forehead top) from the landmarks via the rule of thirds:
-    # the forehead (hairline->brow) is ~half the brow->chin distance. dlib's HOG box
-    # stops around the eyebrows, so we extrapolate above the highest brow point rather
-    # than using the box top (which made the length line fall short of the forehead).
     brow_top_y = min(pts[i][1] for i in range(17, 27))
+
+    # Forehead width: dlib has NO forehead/hairline landmarks, so estimate the
+    # temple-to-temple width (outline points 0 & 16) and raise the line up onto the
+    # forehead — instead of sitting it on the eyebrows, which read too low and narrow.
+    forehead_y = int(max(brow_top_y - 0.30 * (chin[1] - brow_top_y), 0))
+    fx_left, fx_right = pts[0][0], pts[16][0]
+    forehead_w = abs(fx_right - fx_left)
+
+    cheek_w = _dist(pts[1], pts[15])      # cheekbone width (widest face outline)
+    jaw_w = _dist(pts[4], pts[12])        # jaw / gonial width
+
+    # Face length: chin -> estimated hairline (forehead ~ half the brow->chin span),
+    # since the landmarks stop at the eyebrows.
     top_y = int(max(brow_top_y - 0.5 * (chin[1] - brow_top_y), 0))
     length = _dist(chin, (chin[0], top_y))
 
-    # jaw angularity: average gonial angle on both sides (smaller = more angular)
+    # Jaw angularity: average gonial angle on both sides (smaller = more angular)
     jaw_angle = (_angle(pts[2], pts[4], pts[6]) + _angle(pts[14], pts[12], pts[10])) / 2.0
 
     return {
@@ -128,6 +134,7 @@ def _measure(pts, rect):
         "jaw_w": jaw_w,
         "length": length,
         "top_y": top_y,
+        "forehead_line": ((fx_left, forehead_y), (fx_right, forehead_y)),
         "jaw_angle": jaw_angle,
         "len_to_width": length / max(cheek_w, 1e-6),
         "forehead_to_cheek": forehead_w / max(cheek_w, 1e-6),
@@ -152,9 +159,10 @@ def classify(m) -> str:
     if jaw_ratio > 1.0:
         return "Triangle (Pear)"
 
-    # Strong jaw taper (clearly narrow jaw / pointed lower face) -> Heart vs Diamond
+    # Strong jaw taper (clearly narrow jaw / pointed lower face) -> Heart vs Diamond.
+    # forehead is now temple-width (~1.0x cheek baseline): wide top => Heart, else Diamond.
     if jaw_ratio < 0.75:
-        return "Heart" if fore_ratio > 0.82 else "Diamond"
+        return "Heart" if fore_ratio >= 0.92 else "Diamond"
 
     # Normal taper -> decide by face length (chin-to-hairline / cheekbone width) and
     # jaw angularity. Thresholds calibrated for the hairline-inclusive length:
@@ -177,7 +185,7 @@ def _annotate(image, pts, m, rect, shape):
         cv2.circle(out, (int(x), int(y)), 2, (0, 200, 255), -1)
     # measurement lines
     green = (0, 220, 0)
-    cv2.line(out, tuple(pts[17]), tuple(pts[26]), green, 2)      # forehead
+    cv2.line(out, m["forehead_line"][0], m["forehead_line"][1], green, 2)  # forehead (temple width, raised onto forehead)
     cv2.line(out, tuple(pts[1]), tuple(pts[15]), green, 2)       # cheekbone
     cv2.line(out, tuple(pts[4]), tuple(pts[12]), green, 2)       # jaw
     cv2.line(out, (chin[0], m["top_y"]), tuple(chin), green, 2)  # length (to estimated hairline)
