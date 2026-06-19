@@ -105,20 +105,23 @@ def _measure(pts, rect):
     """Compute normalised facial measurements from the 81 landmarks."""
     chin = pts[8]
 
-    # Forehead: the 81-point model adds real hairline landmarks (indices 68-80).
-    # Use the actual leftmost/rightmost/topmost forehead points (robust to their
-    # internal ordering) instead of an eyebrow or temple-silhouette proxy.
+    # Forehead: the 81-point model adds hairline landmarks (68-80), but the OUTERMOST
+    # ones sit low near the temples — connecting the extreme points dropped the line down
+    # to eyebrow level. So take the full temple-to-temple WIDTH, but draw the line up at
+    # the hairline level (average of the highest few points).
     forehead_pts = pts[68:81]
-    f_left = min(forehead_pts, key=lambda p: p[0])    # leftmost hairline point
-    f_right = max(forehead_pts, key=lambda p: p[0])   # rightmost hairline point
-    f_top = min(forehead_pts, key=lambda p: p[1])     # highest hairline point
-    forehead_w = _dist(f_left, f_right)
+    xs = [p[0] for p in forehead_pts]
+    ys = sorted(p[1] for p in forehead_pts)
+    fx_left, fx_right = min(xs), max(xs)
+    forehead_w = fx_right - fx_left
+    top_y = ys[0]                           # highest hairline point (for face length)
+    fore_line_y = int(sum(ys[:4]) / 4.0)    # hairline level for the drawn forehead line
 
     cheek_w = _dist(pts[1], pts[15])      # cheekbone width (widest face outline)
     jaw_w = _dist(pts[5], pts[11])        # jaw width (on the jawline, below the mouth)
 
-    # Face length: chin -> actual hairline (a real landmark now, not an estimate)
-    length = _dist(chin, (chin[0], f_top[1]))
+    # Face length: chin -> actual hairline (highest forehead landmark)
+    length = _dist(chin, (chin[0], top_y))
 
     # Jaw angularity: average gonial angle on both sides (smaller = more angular)
     jaw_angle = (_angle(pts[2], pts[4], pts[6]) + _angle(pts[14], pts[12], pts[10])) / 2.0
@@ -128,8 +131,8 @@ def _measure(pts, rect):
         "cheek_w": cheek_w,
         "jaw_w": jaw_w,
         "length": length,
-        "top_y": f_top[1],
-        "forehead_line": (f_left, f_right),
+        "top_y": top_y,
+        "forehead_line": ((fx_left, fore_line_y), (fx_right, fore_line_y)),
         "jaw_angle": jaw_angle,
         "len_to_width": length / max(cheek_w, 1e-6),
         "forehead_to_cheek": forehead_w / max(cheek_w, 1e-6),
