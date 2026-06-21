@@ -84,4 +84,6 @@ with gr.Blocks(title="Face-Shape Detector") as demo:
     inp.upload(run, inputs=inp, outputs=[out_img, out_shape, out_text])
 
 if __name__ == "__main__":
-    demo.launch()
+    # ssr_mode=False: Gradio 5.x's experimental SSR layer can make the app serve
+    # while HF Spaces' readiness check never passes (Space stuck "Starting" / restart loop).
+    demo.launch(ssr_mode=False)
