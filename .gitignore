@@ -1,6 +1,9 @@
 __pycache__/
 *.pyc
-models/
+# Ignore model dir contents, but bundle the one model the app actually uses
+# (via Git LFS) so the Space ships with it instead of downloading at runtime.
+models/*
+!models/shape_predictor_81_face_landmarks.dat
 annotated_output.jpg
 .venv/
 .DS_Store
