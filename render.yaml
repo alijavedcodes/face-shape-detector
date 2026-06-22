@@ -1,0 +1,11 @@
+# Render Blueprint — deploys the Gradio face-shape detector as a Docker web service.
+# In Render: New → Blueprint → connect this GitHub repo → Apply.
+# (Or: New → Web Service → connect repo → Render auto-detects the Dockerfile.)
+services:
+  - type: web
+    name: face-shape-detector
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    autoDeploy: true

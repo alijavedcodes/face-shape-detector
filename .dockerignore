@@ -1,0 +1,9 @@
+.git
+.gitattributes
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+results/
+assets/
+sample_images/annotated_*.jpg

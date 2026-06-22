@@ -7,6 +7,8 @@ the detected landmarks, the classified face shape, and a hairstyle recommendatio
 Run locally:   python app.py
 Deploy:        push to a Hugging Face Space (SDK: gradio) — see README.
 """
+import os
+
 import cv2
 import gradio as gr
 
@@ -86,4 +88,9 @@ with gr.Blocks(title="Face-Shape Detector") as demo:
 if __name__ == "__main__":
     # ssr_mode=False: Gradio 5.x's experimental SSR layer can make the app serve
     # while HF Spaces' readiness check never passes (Space stuck "Starting" / restart loop).
-    demo.launch(ssr_mode=False)
+    # server_port: honor $PORT (Render and most container hosts inject it); default 7860 for HF/local.
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=int(os.environ.get("PORT", 7860)),
+        ssr_mode=False,
+    )
